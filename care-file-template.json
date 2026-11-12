@@ -1,0 +1,19 @@
+{
+  "format": "plant-pocket-care",
+  "version": 1,
+  "plants": [
+    {
+      "name": "New plant name",
+      "botanical": "Botanical name",
+      "group": "Foliage",
+      "summer": "7–14",
+      "winter": "14–21",
+      "checkDays": 7,
+      "light": "Replace with researched light guidance.",
+      "water": "Replace with a researched compost-dryness check.",
+      "care": "Replace with a researched care summary. Day ranges are examples: adjust them for the species.",
+      "source": "https://www.rhs.org.uk/",
+      "confidence": "Identification needs confirmation."
+    }
+  ]
+}
