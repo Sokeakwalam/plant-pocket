@@ -102,7 +102,7 @@ class Delegate: NSObject, WKNavigationDelegate {
         await Promise.race([Promise.all([...document.images].map(i=>i.decode().catch(()=>{}))),wait(10000).then(()=>{throw Error("Photo decode timed out");})]);
         check([...document.images].every(i=>i.naturalWidth>0),"Bundled images decoded");
         await Promise.race([navigator.serviceWorker.ready,wait(10000).then(()=>{throw Error("Service worker readiness timed out");})]);
-        const cache=await caches.open("plant-pocket-v4");
+        const cache=await caches.open("plant-pocket-v5");
         check(!!await cache.match(new URL("./index.html",location.href).href),"Offline app shell cached");
         const cachedPhotos=await Promise.all(PLANT_SEEDS.map(p=>cache.match(new URL(p.photo,location.href).href)));
         check(cachedPhotos.every(Boolean),"All 16 photos cached for offline use");

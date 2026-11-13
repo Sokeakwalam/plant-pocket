@@ -2,3 +2,5 @@
 .build/
 *.zip
 .private/
+
+*-debug.log

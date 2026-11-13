@@ -4,11 +4,11 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#244a39"><meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="description" content="Your little jungle, cared for. A private, offline plant journal with no accounts or APIs.">
+<meta name="description" content="Your little jungle, cared for. An offline plant journal with optional private phone syncing and no login screen.">
 <title>Plant Pocket · Your little jungle</title>
 <link rel="manifest" href="./manifest.webmanifest"><link rel="icon" href="./icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="./icon-192.png"><link rel="stylesheet" href="./styles.css">
-<script src="./core.js" defer></script><script src="./data.js" defer></script><script src="./app.js" defer></script>
+<link rel="apple-touch-icon" href="./icon-192.png"><link rel="stylesheet" href="./releases/v5/styles.css">
+<script src="./releases/v5/core.js" defer></script><script src="./releases/v5/data.js" defer></script><script src="./releases/v5/sync-core.js" defer></script><script src="./releases/v5/firebase-config.js" defer></script><script src="./releases/v5/app.js" defer></script><script src="./releases/v5/sync-ui.js" defer></script>
 </head>
 <body>
 <header class="topbar"><a class="brand" href="./" aria-label="Plant Pocket home"><span class="brand-icon">❧</span> Plant Pocket</a><span class="local-label"><i></i> Yours, on this device</span></header>
@@ -20,7 +20,8 @@
 <div class="season-row"><p id="season-label"></p><label>Season <select id="season"><option value="auto">Automatic · Ireland</option><option value="summer">Spring / summer</option><option value="winter">Autumn / winter</option></select></label></div>
 <section id="plants" class="grid" aria-label="Your plants"><p>Loading your plants…</p></section>
 <section class="gentle-note"><span aria-hidden="true">♧</span><div><strong>A reminder to check, never a command to water.</strong><p>Feel the compost first. Your plants set the pace; dates are just a helpful nudge.</p></div></section>
-<section class="tools"><div><p class="eyebrow">MAKE IT YOURS</p><h2>A pocket-sized plant journal.</h2><p>Your notes, photos and care history stay in this browser. Use a backup to move them to another phone.</p></div><div class="tool-buttons"><button id="export">↓ Save full backup</button><button id="import">↑ Import care / backup</button><button id="install">Install & help</button></div></section>
+<section class="tools"><div><p class="eyebrow">MAKE IT YOURS</p><h2>A pocket-sized plant journal.</h2><p>Your records stay on this device. Link your phones below to share changes privately, and keep a backup for safekeeping.</p></div><div class="tool-buttons"><button id="export">↓ Save full backup</button><button id="import">↑ Import care / backup</button><button id="install">Install & help</button></div></section>
+<section class="sync-panel" aria-labelledby="sync-heading"><div><p class="eyebrow">ONE GARDEN, BOTH PHONES</p><h2 id="sync-heading">Keep your phones in sync.</h2><p id="sync-status" role="status">Not linked · records saved on this phone</p><p class="small">No email, password or Google login. Link a second phone with a private, single-use invitation.</p><p id="sync-setup-note" class="small" hidden><a href="./firebase-setup.html">Finish the one-time Firebase setup</a> to enable phone syncing.</p></div><div class="tool-buttons"><button id="sync-create" class="primary">Start shared collection</button><button id="sync-join">Join with a code</button><button id="sync-invite" hidden>Invite phone</button><button id="sync-now" hidden>Sync now</button><button id="sync-disconnect" hidden>Disconnect</button></div></section>
 <footer><span>Made for your growing collection.</span><span id="offline-status" role="status">Preparing offline access…</span></footer>
 </main>
 <dialog id="detail-dialog"><div id="detail-content"></div></dialog>
@@ -47,12 +48,14 @@
 <h3>On iPhone</h3><p>Open the published app in Safari. Tap Share, then Add to Home Screen. Open it once online and wait for “Ready offline” before relying on it without internet.</p>
 <h3>On Android</h3><p>Open the published app in Chrome. Open the browser menu and choose Install app or Add to Home screen.</p>
 <h3>Adding a new plant</h3><p>Tap Add a plant, enter its name, and use Search to open gardening results. Write a short care summary and save its source. Alternatively, ask your assistant to research it and create a Plant Pocket care file, then import that file here.</p><button id="download-template">↓ Download care-file template</button>
-<h3>No accounts. No API keys.</h3><p>The collection, photos and history are stored on this device. Search and source links use the internet only when you open them. There is no automatic photo identification, web scraping, cloud sync or background AI.</p>
+<h3>Optional phone syncing, without a login</h3><p>Link phones using a private invitation. Firebase uses anonymous device identities, so no email, password or Google login is needed. Linked phones share changes while open online; offline changes stay on the device until reconnecting. There is no automatic photo identification or background AI.</p>
 <h3>Keep a backup</h3><p>Save a full backup regularly, especially before clearing browser data or changing phones. Each browser and home-screen installation may have its own storage. Import your backup on another device to transfer it. Backups contain your photos and notes.</p>
 <h3>Care reminders</h3><p>Check today shows soil-check reminders when you open the app. It does not send push notifications while closed. You can download calendar reminders for a plant from its details; your phone calendar controls alerts.</p>
 <h3>Your home</h3><p>Your radiators run infrequently and stay mildly warm; the plants have remained healthy there for three months. There’s no automatic “move plant” warning. Reassess if the pots heat up, drying speeds up, or heating use changes.</p>
 <h3>Season and watering</h3><p>Automatic season uses Ireland’s April–September growing season and October–March cooler season. These are broad estimates; always use the compost check. You can override the season.</p>
 <div class="dialog-actions"><button class="primary" data-close>Back to my plants</button></div></dialog>
+<dialog id="join-dialog"><form id="join-form"><div class="dialog-heading"><div><p class="eyebrow">THE SAME GARDEN, TOGETHER</p><h2>Link this phone</h2></div><button type="button" class="icon-button" data-close aria-label="Close">×</button></div><p>On the first phone, tap Invite phone. Paste its code below. The code works once and expires after 12 hours.</p><label>Invitation code<input id="join-code" autocomplete="off" autocapitalize="off" spellcheck="false" required></label><p class="small">This combines this phone’s plants and care logs with the shared collection. Existing watering logs from both phones are kept. If the same field was edited on both phones, the later edit is used.</p><div class="dialog-actions"><button type="button" data-close>Cancel</button><button type="submit" class="primary">Link this phone</button></div></form></dialog>
+<dialog id="invite-dialog"><div class="dialog-heading"><div><p class="eyebrow">SHARE YOUR LITTLE JUNGLE</p><h2>Invite your other phone</h2></div><button class="icon-button" data-close aria-label="Close">×</button></div><p>On the other phone, open Plant Pocket, tap Join with a code, and paste this invitation. Keep this code private: it gives access to the collection.</p><label>Single-use invitation · expires in 12 hours<input id="invite-code" readonly></label><div class="dialog-actions"><button data-close>Done</button><button id="copy-invite" class="primary">Copy invitation</button></div></dialog>
 <div id="toast" role="status" aria-live="polite" hidden></div>
 <noscript>This app needs JavaScript enabled to store and display your plant collection.</noscript>
 </body></html>

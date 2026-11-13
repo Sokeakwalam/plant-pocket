@@ -12,7 +12,7 @@ for name in ["core.js", "data.js"] {
     let source = try String(contentsOfFile: "\(root)/dist/\(name)", encoding: .utf8)
     context.evaluateScript(source, withSourceURL: URL(fileURLWithPath: name))
 }
-for name in ["app.js", "sw.js"] {
+for name in ["app.js", "sw.js", "sync-core.js", "sync-ui.js"] {
     let source = try String(contentsOfFile: "\(root)/dist/\(name)", encoding: .utf8)
     context.setObject(source, forKeyedSubscript: "syntaxSource" as NSString)
     context.evaluateScript("new Function(syntaxSource)")

@@ -1,0 +1,78 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "collections": {
+      "$collection": {
+        ".read": "auth != null && data.child('members').child(auth.uid).exists()",
+        ".write": "auth != null && !data.exists() && newData.child('owner').val() == auth.uid && newData.child('members').child(auth.uid).exists()",
+        ".validate": "newData.hasChildren(['owner','createdAt','version','members']) && $collection.length >= 20 && $collection.length <= 64",
+        "owner": {
+          ".validate": "newData.isString() && (!data.exists() || newData.val() == data.val())"
+        },
+        "createdAt": {
+          ".validate": "newData.isNumber() && (!data.exists() || newData.val() == data.val())"
+        },
+        "version": {
+          ".validate": "newData.val() == 1"
+        },
+        "members": {
+          "$uid": {
+            ".read": "auth != null && auth.uid == $uid",
+            ".write": "auth != null && auth.uid == $uid && !data.exists() && root.child('invites').child(newData.child('inviteId').val()).child('collectionId').val() == $collection && root.child('invites').child(newData.child('inviteId').val()).child('claimedBy').val() == auth.uid && root.child('invites').child(newData.child('inviteId').val()).child('expiresAt').val() > now",
+            ".validate": "newData.hasChildren(['joinedAt','inviteId'])",
+            "joinedAt": {
+              ".validate": "newData.isNumber()"
+            },
+            "inviteId": {
+              ".validate": "newData.isString()"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "ops": {
+          "$operation": {
+            ".write": "auth != null && root.child('collections').child($collection).child('members').child(auth.uid).exists() && !data.exists()",
+            ".validate": "newData.hasChildren(['writer','payload']) && $operation.length <= 150",
+            "writer": {
+              ".validate": "newData.val() == auth.uid"
+            },
+            "payload": {
+              ".validate": "newData.isString() && newData.val().length <= 3000000"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "invites": {
+      "$token": {
+        ".read": "auth != null",
+        ".write": "auth != null && ((!data.exists() && newData.child('createdBy').val() == auth.uid && root.child('collections').child(newData.child('collectionId').val()).child('owner').val() == auth.uid && !newData.child('claimedBy').exists() && newData.child('expiresAt').val() > now && newData.child('expiresAt').val() <= now + 86400000) || (data.exists() && !data.child('claimedBy').exists() && data.child('expiresAt').val() > now && newData.child('claimedBy').val() == auth.uid))",
+        ".validate": "newData.hasChildren(['collectionId','createdBy','expiresAt']) && $token.length == 48",
+        "collectionId": {
+          ".validate": "newData.isString() && (!data.exists() || newData.val() == data.val())"
+        },
+        "createdBy": {
+          ".validate": "newData.isString() && (!data.exists() || newData.val() == data.val())"
+        },
+        "expiresAt": {
+          ".validate": "newData.isNumber() && (!data.exists() || newData.val() == data.val())"
+        },
+        "claimedBy": {
+          ".validate": "newData.isString() && newData.val() == auth.uid"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    }
+  }
+}
