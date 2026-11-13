@@ -77,3 +77,7 @@ This evaluates JavaScript syntax and core tests in Apple's JavaScriptCore, valid
 ## Updating the app
 
 Bump the service-worker cache version in dist/sw.js AND dist/app.js together when changing static assets. This ensures a new install fetches changed files. Keep the existing IndexedDB schema/data intact.
+
+## Dated care records
+
+Import a version-1 plant-pocket-records file with a records array. Each record has plantId, type (watered or moist), date (YYYY-MM-DD, no future dates), and optional id. Preview lists affected plants; import merges history without replacing notes or plants. Same-day duplicate records are skipped. Later soil checks are preserved. Unknown plant IDs are skipped. Personal record files belong in .private/, which is excluded from Git and deployment. After an app update, reopen the app online to download the new offline cache, then close and reopen if the previous interface is still shown.

@@ -68,6 +68,29 @@ class Delegate: NSObject, WKNavigationDelegate {
         check(backup.plants[0].notes==="Browser test note","Notes survive round-trip");
         const stored=await readDB();check(stored.plants.length===17,"IndexedDB collection saved");
         check(stored.plants[0].history.length===1,"IndexedDB water log saved");
+        const recordDate=C.addDays(C.dayKey(),-1);
+        const recordFile={format:"plant-pocket-records",version:1,records:PLANT_SEEDS.map(p=>({plantId:p.id,type:"watered",date:recordDate}))};
+        function chooseRecords(data){
+          const transfer=new DataTransfer();
+          transfer.items.add(new File([JSON.stringify(data)],"care-records.json",{type:"application/json"}));
+          document.querySelector("#import-file").files=transfer.files;
+          document.querySelector("#import-file").dispatchEvent(new Event("change"));
+        }
+        document.querySelector("#import").click();chooseRecords(recordFile);await wait(300);
+        check(document.querySelector("#import-preview").textContent.includes("16 new care records"),"Records preview lists matched entries");
+        check(!document.querySelector("#confirm-import").disabled,"Validated records ready for import");
+        document.querySelector("#confirm-import").click();await wait(400);
+        check(!document.querySelector("#import-dialog").open,"Records import completes");
+        check(state.plants.length===17,"Record import keeps plant collection intact");
+        check(state.plants.slice(0,16).every(p=>p.history.some(e=>e.type==="watered"&&e.date===recordDate)),"All 16 dated records saved");
+        check(state.plants[0].lastCheck===C.dayKey(),"Dated import preserves later check");
+        check(state.plants[0].notes==="Browser test note","Dated import preserves notes");
+        document.querySelector("#import").click();chooseRecords(recordFile);await wait(300);
+        check(document.querySelector("#import-preview").textContent.includes("0 new care records"),"Reimport recognises duplicates");
+        check(document.querySelector("#confirm-import").disabled,"Duplicate-only import cannot add more records");
+        chooseRecords({format:"plant-pocket-records",version:1,records:[{plantId:"plant-7485",date:"9999-01-01",type:"watered"}]});await wait(300);
+        check(document.querySelector("#confirm-import").disabled,"Invalid replacement file cannot reuse pending valid import");
+        document.querySelector("#import-dialog").close();
         // Leave the visual preview on the real initial 16 plants; this is isolated test storage.
         state={version:1,season:"auto",plants:PLANT_SEEDS.map(p=>C.normalizePlant(p))};
         await writeDB(state);render();
@@ -76,7 +99,7 @@ class Delegate: NSObject, WKNavigationDelegate {
         await Promise.race([Promise.all([...document.images].map(i=>i.decode().catch(()=>{}))),wait(10000).then(()=>{throw Error("Photo decode timed out");})]);
         check([...document.images].every(i=>i.naturalWidth>0),"Bundled images decoded");
         await Promise.race([navigator.serviceWorker.ready,wait(10000).then(()=>{throw Error("Service worker readiness timed out");})]);
-        const cache=await caches.open("plant-pocket-v1");
+        const cache=await caches.open("plant-pocket-v2");
         check(!!await cache.match(new URL("./index.html",location.href).href),"Offline app shell cached");
         const cachedPhotos=await Promise.all(PLANT_SEEDS.map(p=>cache.match(new URL(p.photo,location.href).href)));
         check(cachedPhotos.every(Boolean),"All 16 photos cached for offline use");

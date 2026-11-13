@@ -40,5 +40,38 @@ const ics=C.calendar({...p,name:"Aloe, vera; plant",water:"Line 1\nLine 2"},"win
 assert(ics.includes("RRULE:FREQ=DAILY;INTERVAL=7"),"Calendar check recurrence");
 assert(ics.includes("SUMMARY:Check soil: Aloe\\, vera\\; plant"),"Calendar escape");
 assert(ics.includes("\r\n"),"Calendar CRLF");
+
+const imported=C.parseImport({format:"plant-pocket-records",version:1,records:PLANT_SEEDS.map(p=>({plantId:p.id,type:"watered",date:"2026-11-11"}))});
+assert(imported.records.length===16,"All 16 dated watering records parsed");
+const collection=PLANT_SEEDS.map(p=>C.normalizePlant(p));
+collection[0].notes="Keep this private note";
+collection[0].history=[{id:"later-check",type:"moist",date:"2026-11-12"}];
+collection[0].lastCheck="2026-11-12";collection[0].lastCheckKind="moist";
+const preview=C.mergeRecords(collection,imported.records,false);
+assert(preview.added===16,"Preview counts new records");
+assert(collection[0].history.length===1,"Preview never changes storage");
+const merged=C.mergeRecords(collection,imported.records);
+assert(merged.added===16,"Adds all 16 watering records");
+assert(collection.length===16,"Does not duplicate plants");
+assert(collection.every(p=>C.latest(p,"watered")==="2026-11-11"),"Correct last-watered date");
+assert(collection[0].notes==="Keep this private note","Preserves personal notes");
+assert(collection[0].history.some(e=>e.id==="later-check"),"Preserves existing history");
+assert(collection[0].lastCheck==="2026-11-12"&&collection[0].lastCheckKind==="moist","Never moves later check backward");
+assert(collection[1].lastCheck==="2026-11-11"&&collection[1].lastCheckKind==="watered","Sets check date when no later check");
+const again=C.mergeRecords(collection,imported.records);
+assert(again.added===0&&again.duplicates===16,"Reimport is idempotent");
+const missing=C.mergeRecords([],imported.records);
+assert(missing.added===0&&missing.missing===16,"Missing plants skipped without recreating them");
+const manuallyRecorded=[C.normalizePlant(PLANT_SEEDS[0])];
+manuallyRecorded[0].history=[{id:"manual",type:"watered",date:"2026-11-11"}];
+assert(C.mergeRecords(manuallyRecorded,imported.records).duplicates===1,"Same-day manual watering is not duplicated");
+const duplicateInput=C.mergeRecords([C.normalizePlant(PLANT_SEEDS[0])],[imported.records[0],imported.records[0]]);
+assert(duplicateInput.added===1&&duplicateInput.duplicates===1,"Duplicate records in one file deduplicated");
+rejects(()=>C.parseImport({format:"plant-pocket-records",version:1,records:[]}),"Empty records rejected");
+rejects(()=>C.parseImport({format:"plant-pocket-records",version:2,records:imported.records}),"Future records format rejected");
+rejects(()=>C.parseImport({format:"plant-pocket-records",version:1,records:[{plantId:"plant-7485",type:"watered",date:"2026-02-30"}]}),"Impossible record date rejected");
+rejects(()=>C.parseImport({format:"plant-pocket-records",version:1,records:[{plantId:"plant-7485",type:"watered",date:"9999-01-01"}]}),"Future watering rejected");
+rejects(()=>C.parseImport({format:"plant-pocket-records",version:1,records:[{plantId:"plant-7485",type:"other",date:"2026-11-11"}]}),"Unknown record type rejected");
+
 return count+" assertions passed";
 })()

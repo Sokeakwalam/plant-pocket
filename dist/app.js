@@ -26,7 +26,7 @@ function render(){
 }
 function renderDetail(){
  const p=findPlant(activeId);if(!p)return;const next=C.nextCheck(p,state.season),last=C.latest(p,"watered");
- const history=p.history.slice(-12).reverse().map(e=>'<li>'+esc(humanDate(e.date))+' · '+(e.type==="watered"?"Watered":"Checked · still moist")+'</li>').join("");
+ const history=[...p.history].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,12).map(e=>'<li>'+esc(humanDate(e.date))+' · '+(e.type==="watered"?"Watered":"Checked · still moist")+'</li>').join("");
  $("#detail-content").innerHTML='<div class="dialog-heading"><div><p class="eyebrow">'+esc(p.group.toUpperCase())+'</p><h2>'+esc(p.name)+'</h2><p><i>'+esc(p.botanical)+'</i></p></div><button class="icon-button" data-close aria-label="Close">×</button></div>'+(p.photo?photoHTML(p,"detail-photo"):"")+
  '<div class="care-block"><h3>When to water</h3><p>'+esc(p.water)+'</p><p class="small">Estimates: spring/summer '+esc(p.summer)+' days · autumn/winter '+esc(p.winter)+' days. Soil condition comes first.</p></div>'+
  '<div class="care-block"><h3>Light & placement</h3><p>'+esc(p.light)+'</p></div><div class="care-block"><h3>A little extra care</h3><p>'+esc(p.care||"No extra care notes yet.")+'</p></div>'+
@@ -45,7 +45,7 @@ function download(contents,name,type){const u=URL.createObjectURL(new Blob([cont
 function blobToData(blob){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(r.error);r.readAsDataURL(blob);});}
 async function exportBackup(){const button=$("#export");button.disabled=true;try{const plants=JSON.parse(JSON.stringify(state.plants));for(const p of plants){if(p.photo&&p.photo.startsWith("./photos/")){const r=await fetch(p.photo);if(!r.ok)throw Error("Could not include "+p.name+"’s photo. Open online once and try again.");p.photo=await blobToData(await r.blob());}}download(JSON.stringify({format:"plant-pocket-backup",version:1,exportedAt:new Date().toISOString(),season:state.season,plants},null,2),"plant-pocket-backup-"+today()+".json","application/json");toast("Backup prepared. Save it somewhere you can find again.");}catch(e){toast(e.message);}finally{button.disabled=false;}}
 function templateFile(){download(JSON.stringify({format:"plant-pocket-care",version:1,plants:[{name:"Replace with the plant’s common name",botanical:"Replace with its botanical name",group:"Foliage",summer:"7–14",winter:"14–21",checkDays:7,light:"Replace with researched light guidance.",water:"Replace with a researched compost-dryness check.",care:"Replace with a researched care summary. Adjust the example day ranges for this species.",source:"https://www.rhs.org.uk/",confidence:"Confirm the plant identification before applying this care."}]},null,2),"plant-pocket-care-template.json","application/json");}
-async function setupOffline(){const label=$("#offline-status");if(!("serviceWorker" in navigator)||!window.isSecureContext){label.textContent="Offline install needs HTTPS hosting";return;}try{const registration=await navigator.serviceWorker.register("./sw.js",{scope:"./"});await navigator.serviceWorker.ready;const check=async()=>{const cache=await caches.open("plant-pocket-v1"),ready=await cache.match(new URL("./index.html",location.href).href);label.textContent=ready?"Ready offline · no APIs":"Open online to finish offline setup";};await check();if(registration.installing)registration.installing.addEventListener("statechange",check);}catch(e){label.textContent="Offline setup incomplete · retry online";console.warn("Offline setup",e);}}
+async function setupOffline(){const label=$("#offline-status");if(!("serviceWorker" in navigator)||!window.isSecureContext){label.textContent="Offline install needs HTTPS hosting";return;}try{const registration=await navigator.serviceWorker.register("./sw.js",{scope:"./"});await navigator.serviceWorker.ready;const check=async()=>{const cache=await caches.open("plant-pocket-v2"),ready=await cache.match(new URL("./index.html",location.href).href);label.textContent=ready?"Ready offline · no APIs":"Open online to finish offline setup";};await check();if(registration.installing)registration.installing.addEventListener("statechange",check);}catch(e){label.textContent="Offline setup incomplete · retry online";console.warn("Offline setup",e);}}
 function bind(){
  $("#search").addEventListener("input",render);
  $$(".tab").forEach(b=>b.addEventListener("click",()=>{filter=b.dataset.filter;render();}));
@@ -67,8 +67,35 @@ function bind(){
  $("#editor-form").addEventListener("submit",async e=>{e.preventDefault();const form=e.target,submit=form.querySelector("[type=submit]");submit.disabled=true;try{const values=Object.fromEntries(new FormData(form)),old=values.id?findPlant(values.id):null,photo=await resizePhoto(form.elements.photo.files[0]);delete values.photo;const plant=C.normalizePlant({...old,...values,photo:photo||old?.photo||"",history:old?.history||[],lastCheck:old?.lastCheck||null,lastCheckKind:old?.lastCheckKind||"moist",confidence:old?.confidence||"Identification entered by you."});if(await change(()=>{const index=state.plants.findIndex(p=>p.id===plant.id);if(index>=0)state.plants[index]=plant;else state.plants.push(plant);})){form.closest("dialog").close();toast(old?"Plant updated.":"Welcome to the jungle, "+plant.name+".");}}catch(e){toast(e.message);}finally{submit.disabled=false;}});
  $("#export").addEventListener("click",exportBackup);
  $("#import").addEventListener("click",()=>{$("#import-file").value="";$("#import-preview").replaceChildren();$("#confirm-import").disabled=true;pendingImport=null;openDialog("#import-dialog");});
- $("#import-file").addEventListener("change",async e=>{const file=e.target.files[0];pendingImport=null;$("#confirm-import").disabled=true;if(!file)return;try{if(file.size>40000000)throw Error("Choose a file smaller than 40 MB.");pendingImport=C.parseImport(JSON.parse(await file.text()));const backup=pendingImport.format==="plant-pocket-backup";$("#import-preview").innerHTML='<h3>'+pendingImport.plants.length+' plants ready</h3><ul class="import-list">'+pendingImport.plants.map(p=>'<li>'+esc(p.name)+'</li>').join("")+'</ul>'+(backup?'<div class="replace-option"><strong>Restore a full backup</strong><p>This replaces this device’s collection and history. Save a backup of this device first if needed.</p><label><input type="checkbox" id="replace-confirm">Replace this device’s collection</label></div>':'<p>Care profiles will be added as new plants. Existing plants and logs will stay as they are.</p>');const button=$("#confirm-import");button.textContent=backup?"Restore backup":"Add care profiles";button.disabled=backup;if(backup)$("#replace-confirm").addEventListener("change",e=>button.disabled=!e.target.checked);else button.disabled=false;}catch(e){$("#import-preview").textContent=e.message;}});
- $("#confirm-import").addEventListener("click",async()=>{if(!pendingImport)return;const data=pendingImport,backup=data.format==="plant-pocket-backup";if(backup&&!$("#replace-confirm")?.checked)return;if(await change(()=>{if(backup){state.plants=data.plants;state.season=data.season;}else state.plants.push(...data.plants.map(p=>({...p,id:"plant-"+crypto.randomUUID(),history:[],lastCheck:null,lastCheckKind:"moist"})));})){pendingImport=null;$("#import-dialog").close();toast(backup?"Backup restored.":"Care profiles added.");}});
+ $("#import-file").addEventListener("change",async e=>{
+ const file=e.target.files[0];pendingImport=null;$("#confirm-import").disabled=true;if(!file)return;
+ try{
+  if(file.size>40000000)throw Error("Choose a file smaller than 40 MB.");
+  const parsed=C.parseImport(JSON.parse(await file.text()));
+  const backup=parsed.format==="plant-pocket-backup",records=parsed.format==="plant-pocket-records",button=$("#confirm-import");
+  if(records){
+   const plan=C.mergeRecords(state.plants,parsed.records,false);
+   $("#import-preview").innerHTML='<h3>'+plan.added+' new care records</h3><ul class="import-list">'+parsed.records.map(r=>'<li>'+esc(findPlant(r.plantId)?.name||"Plant not on this device: "+r.plantId)+' · '+esc(humanDate(r.date))+' · '+(r.type==="watered"?"Watered":"Checked · still moist")+'</li>').join("")+'</ul><p>Your plants, notes and existing history are kept. '+plan.duplicates+' already recorded; '+plan.missing+' unmatched records will be skipped.</p>';
+   button.textContent="Add care records";button.disabled=plan.added===0;
+  }else{
+   $("#import-preview").innerHTML='<h3>'+parsed.plants.length+' plants ready</h3><ul class="import-list">'+parsed.plants.map(p=>'<li>'+esc(p.name)+'</li>').join("")+'</ul>'+(backup?'<div class="replace-option"><strong>Restore a full backup</strong><p>This replaces this device’s collection and history. Save a backup of this device first if needed.</p><label><input type="checkbox" id="replace-confirm">Replace this device’s collection</label></div>':'<p>Care profiles will be added as new plants. Existing plants and logs will stay as they are.</p>');
+   button.textContent=backup?"Restore backup":"Add care profiles";button.disabled=backup;
+   if(backup)$("#replace-confirm").addEventListener("change",e=>button.disabled=!e.target.checked);
+  }
+  pendingImport=parsed;
+ }catch(error){pendingImport=null;$("#confirm-import").disabled=true;$("#import-preview").textContent=error.message;}
+ });
+ $("#confirm-import").addEventListener("click",async()=>{
+  if(!pendingImport)return;
+  const data=pendingImport,backup=data.format==="plant-pocket-backup",records=data.format==="plant-pocket-records";
+  if(backup&&!$("#replace-confirm")?.checked)return;
+  let summary;
+  if(await change(()=>{
+   if(records)summary=C.mergeRecords(state.plants,data.records);
+   else if(backup){state.plants=data.plants;state.season=data.season;}
+   else state.plants.push(...data.plants.map(p=>({...p,id:"plant-"+crypto.randomUUID(),history:[],lastCheck:null,lastCheckKind:"moist"})));
+  })){pendingImport=null;$("#import-dialog").close();toast(records?summary.added+" care records saved.":backup?"Backup restored.":"Care profiles added.");}
+ });
  $("#install").addEventListener("click",()=>openDialog("#help-dialog"));$("#download-template").addEventListener("click",templateFile);
  document.addEventListener("visibilitychange",()=>{if(!document.hidden&&state)render();});
 }

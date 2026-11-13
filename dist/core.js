@@ -24,15 +24,42 @@ function normalizePlant(raw,requireCare=true){
  return {id:text(raw.id,100)||("plant-"+Date.now()+"-"+Math.random().toString(36).slice(2)),name,botanical:text(raw.botanical,150),group:["Foliage","Succulent","Orchid"].includes(raw.group)?raw.group:"Foliage",summer,winter,checkDays,light,water,care:text(raw.care),notes:text(raw.notes),source:safeURL(raw.source),confidence:text(raw.confidence,200),photo:cleanPhoto(raw.photo),lastCheck:validDate(raw.lastCheck),lastCheckKind:raw.lastCheckKind==="watered"?"watered":"moist",history};
 }
 function parseImport(raw){
+ if(raw&&raw.format==="plant-pocket-records")return parseRecords(raw);
  if(!raw||raw.version!==1||!["plant-pocket-care","plant-pocket-backup"].includes(raw.format)||!Array.isArray(raw.plants))throw Error("This is not a version 1 Plant Pocket care or backup file.");
  if((raw.format==="plant-pocket-care"&&!raw.plants.length)||raw.plants.length>250)throw Error("Import between 1 and 250 plants at once.");
  const plants=raw.plants.map(p=>normalizePlant(p));if(new Set(plants.map(p=>p.id)).size!==plants.length)throw Error("The file contains duplicate plant IDs.");
  return {format:raw.format,plants,season:["auto","summer","winter"].includes(raw.season)?raw.season:"auto"};
 }
+
+function parseRecords(raw){
+ if(raw.version!==1||!Array.isArray(raw.records)||!raw.records.length||raw.records.length>10000)throw Error("Import between 1 and 10,000 care records in a version 1 file.");
+ const records=raw.records.map(r=>{
+  if(!r||!["watered","moist"].includes(r.type)||!validDate(r.date)||typeof r.plantId!=="string"||!r.plantId.trim()||r.plantId.length>100)throw Error("Each care record needs an existing plant ID, a valid past or present date, and a watered or moist type.");
+  return {plantId:r.plantId,type:r.type,date:r.date,id:text(r.id,100)||"record-"+r.plantId+"-"+r.type+"-"+r.date};
+ });
+ return {format:"plant-pocket-records",records};
+}
+function mergeRecords(plants,records,apply=true){
+ const byId=new Map(plants.map(p=>[p.id,p])),seen=new Set();
+ let added=0,duplicates=0,missing=0;
+ for(const event of records){
+  const p=byId.get(event.plantId);
+  if(!p){missing++;continue;}
+  const key=event.plantId+"|"+event.type+"|"+event.date;
+  if(seen.has(key)||p.history.some(e=>(e.type===event.type&&e.date===event.date)||(e.id&&e.id===event.id))){duplicates++;continue;}
+  seen.add(key);added++;
+  if(apply){
+   p.history.push({id:event.id,type:event.type,date:event.date});
+   if(!p.lastCheck||event.date>p.lastCheck){p.lastCheck=event.date;p.lastCheckKind=event.type;}
+  }
+ }
+ return {added,duplicates,missing};
+}
+
 function escapeICS(v){return String(v).replace(/\\/g,"\\\\").replace(/\n/g,"\\n").replace(/,/g,"\\,").replace(/;/g,"\\;");}
 function calendar(p,setting="auto"){
  const date=nextCheck(p,setting)||dayKey(),stamp=new Date().toISOString().replace(/[-:]/g,"").replace(/\.\d{3}/,"");
  return ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Plant Pocket//Care Checks//EN","CALSCALE:GREGORIAN","BEGIN:VEVENT","UID:"+encodeURIComponent(p.id)+"-"+Date.now()+"@plant-pocket.local","DTSTAMP:"+stamp,"DTSTART;VALUE=DATE:"+date.replace(/-/g,""),"DTEND;VALUE=DATE:"+addDays(date,1).replace(/-/g,""),"RRULE:FREQ=DAILY;INTERVAL="+p.checkDays,"SUMMARY:"+escapeICS("Check soil: "+p.name),"DESCRIPTION:"+escapeICS(p.water+"\nCheck only; water if the compost is ready. "+p.source),"END:VEVENT","END:VCALENDAR",""].join("\r\n");
 }
-root.PlantCore={dayKey,dayNumber,addDays,season,interval,safeURL,latest,nextCheck,isDue,normalizePlant,parseImport,calendar};
+root.PlantCore={dayKey,dayNumber,addDays,season,interval,safeURL,latest,nextCheck,isDue,normalizePlant,parseImport,mergeRecords,calendar};
 })(globalThis);
