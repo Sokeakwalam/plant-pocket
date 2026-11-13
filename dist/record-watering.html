@@ -1,0 +1,42 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#244a39"><title>Saving your watering record · Plant Pocket</title><style>body{font:17px system-ui;background:#f6f5ef;color:#244a39;max-width:480px;margin:15vh auto;padding:24px;line-height:1.6}h1{font:36px Georgia}a{color:inherit}</style><h1>Saving your watering record.</h1><p id="status" role="status">Recording 11 November 2026 for your original plants on this device. Your notes and later records are kept.</p><a id="open" href="./" hidden>Open Plant Pocket</a><script src="./data.js"></script><script>
+"use strict";
+(async()=>{
+ try{
+  const ids=["plant-7485", "plant-7486", "plant-7487", "plant-7488", "plant-7489", "plant-7490", "plant-7493", "plant-7494", "plant-7495", "plant-7496", "plant-7497", "plant-7498", "plant-7499", "plant-7500", "plant-7501", "plant-7502"],date="2026-11-11",updateId="initial-watering-2026-11-11";
+  const db=await new Promise((resolve,reject)=>{
+   const request=indexedDB.open("plant-pocket",1);
+   request.onupgradeneeded=()=>request.result.createObjectStore("collection");
+   request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);
+   request.onblocked=()=>reject(Error("Close other Plant Pocket tabs, then refresh this page."));
+  });
+  let added=0;
+  await new Promise((resolve,reject)=>{
+   const tx=db.transaction("collection","readwrite"),store=tx.objectStore("collection"),request=store.get("state");
+   request.onsuccess=()=>{
+    try{
+     const state=request.result||{version:1,season:"auto",plants:JSON.parse(JSON.stringify(PLANT_SEEDS))};
+     if(!Array.isArray(state.plants))throw Error("Your saved collection could not be read. It has not been reset.");
+     for(const plant of state.plants){
+      if(!ids.includes(plant.id))continue;
+      if(!Array.isArray(plant.history))plant.history=[];
+      if(!plant.history.some(e=>e.type==="watered"&&e.date===date)){
+       plant.history.push({id:"watering-"+date+"-"+plant.id,type:"watered",date});added++;
+      }
+      if(!plant.lastCheck||plant.lastCheck<date){plant.lastCheck=date;plant.lastCheckKind="watered";}
+     }
+     state.appliedUpdates=[...new Set([...(Array.isArray(state.appliedUpdates)?state.appliedUpdates:[]),updateId])];
+     store.put(state,"state");
+    }catch(error){reject(error);tx.abort();}
+   };
+   tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||Error("Saving stopped. Your previous records have been kept."));
+  });
+  db.close();
+  document.querySelector("#status").textContent=added+" watering entries saved. Opening your plants…";
+  // Existing offline app versions already know how to display these records.
+  location.replace("./");
+ }catch(error){
+  document.querySelector("#status").textContent=error.message;
+  document.querySelector("#open").hidden=false;
+ }
+})();
+</script></html>

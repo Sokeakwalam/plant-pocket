@@ -85,3 +85,7 @@ Import a version-1 plant-pocket-records file with a records array. Each record h
 ## Automatic initial watering record
 
 At the owner’s request, the published app now includes an initial watering record dated 11 November 2026 for the 16 original plants. This date is public with the app source. A one-time device migration adds missing records without overwriting notes, later checks or watering logs, or restoring deleted plants. The migration marker is preserved in full backups. Open update.html online to load the latest offline cache without clearing device storage.
+
+## Repair an older cached installation
+
+Open record-watering.html in the same browser or app storage you use for Plant Pocket. It records the owner-confirmed 11 November watering directly in IndexedDB and works with the original offline release. It skips same-day duplicates, preserves later records and notes, and does not add entries for unrelated new plants. The upgrade regression test runs with python3 tests/upgrade-server.py and swift tests/upgrade.swift in another terminal.
