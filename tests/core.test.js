@@ -73,5 +73,23 @@ rejects(()=>C.parseImport({format:"plant-pocket-records",version:1,records:[{pla
 rejects(()=>C.parseImport({format:"plant-pocket-records",version:1,records:[{plantId:"plant-7485",type:"watered",date:"9999-01-01"}]}),"Future watering rejected");
 rejects(()=>C.parseImport({format:"plant-pocket-records",version:1,records:[{plantId:"plant-7485",type:"other",date:"2026-11-11"}]}),"Unknown record type rejected");
 
+
+const migrationState={plants:PLANT_SEEDS.map(p=>C.normalizePlant(p))};
+migrationState.plants[0].notes="My existing notes";
+migrationState.plants[0].history=[{id:"later",type:"watered",date:"2026-11-12"}];
+migrationState.plants[0].lastCheck="2026-11-12";migrationState.plants[0].lastCheckKind="watered";
+assert(C.applyUpdates(migrationState,PLANT_UPDATES).added===16,"Automatic update records all 16 original plants");
+assert(C.latest(migrationState.plants[1],"watered")==="2026-11-11","Original watering date displayed automatically");
+assert(C.latest(migrationState.plants[0],"watered")==="2026-11-12","Later watering remains latest");
+assert(migrationState.plants[0].notes==="My existing notes","Automatic update preserves notes");
+assert(!C.applyUpdates(migrationState,PLANT_UPDATES).changed,"Automatic update runs only once");
+migrationState.plants[1].history=[];
+assert(!C.applyUpdates(migrationState,PLANT_UPDATES).changed&&migrationState.plants[1].history.length===0,"Undo remains respected after reopening");
+const removedState={plants:[]};
+C.applyUpdates(removedState,PLANT_UPDATES);
+assert(removedState.plants.length===0,"Automatic update never recreates removed plants");
+const saved=C.parseImport({format:"plant-pocket-backup",version:1,plants:migrationState.plants,appliedUpdates:migrationState.appliedUpdates});
+assert(saved.appliedUpdates.includes("initial-watering-2026-11-11"),"Backup retains applied update marker");
+
 return count+" assertions passed";
 })()

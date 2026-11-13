@@ -81,3 +81,7 @@ Bump the service-worker cache version in dist/sw.js AND dist/app.js together whe
 ## Dated care records
 
 Import a version-1 plant-pocket-records file with a records array. Each record has plantId, type (watered or moist), date (YYYY-MM-DD, no future dates), and optional id. Preview lists affected plants; import merges history without replacing notes or plants. Same-day duplicate records are skipped. Later soil checks are preserved. Unknown plant IDs are skipped. Personal record files belong in .private/, which is excluded from Git and deployment. After an app update, reopen the app online to download the new offline cache, then close and reopen if the previous interface is still shown.
+
+## Automatic initial watering record
+
+At the owner’s request, the published app now includes an initial watering record dated 11 November 2026 for the 16 original plants. This date is public with the app source. A one-time device migration adds missing records without overwriting notes, later checks or watering logs, or restoring deleted plants. The migration marker is preserved in full backups. Open update.html online to load the latest offline cache without clearing device storage.

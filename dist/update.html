@@ -1,0 +1,18 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#244a39"><title>Updating Plant Pocket</title><style>body{font:17px system-ui;background:#f6f5ef;color:#244a39;max-width:480px;margin:15vh auto;padding:24px;line-height:1.6}h1{font:36px Georgia}a{color:inherit}</style><h1>Updating your little jungle.</h1><p id="status" role="status">Getting the latest app. Your saved notes and history stay on this device.</p><a href="./">Open Plant Pocket</a><script>
+(async()=>{
+ try{
+  if("serviceWorker" in navigator){
+   const reg=await navigator.serviceWorker.getRegistration("./");
+   if(reg){
+    await reg.update();const worker=reg.installing||reg.waiting;
+    if(worker&&worker.state!=="activated")await new Promise((resolve,reject)=>{
+     const timer=setTimeout(()=>reject(Error("The update is taking longer than expected. Check your connection and refresh this page.")),45000);
+     const check=()=>{if(worker.state==="activated"){clearTimeout(timer);resolve();}else if(worker.state==="redundant"){clearTimeout(timer);reject(Error("The update could not finish. Refresh this page to retry."));}};
+     worker.addEventListener("statechange",check);check();
+    });
+   }
+  }
+  location.replace("./");
+ }catch(e){document.querySelector("#status").textContent=e.message;}
+})();
+</script></html>

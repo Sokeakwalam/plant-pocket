@@ -21,6 +21,8 @@ class Delegate: NSObject, WKNavigationDelegate {
         let n=0; const check=(v,m)=>{if(!v)throw Error(m);n++};
         for(let i=0;i<100&&!document.querySelector(".plant-card");i++)await wait(100);
         check(document.querySelectorAll(".plant-card").length===16,"16 cards rendered");
+        check(state.plants.every(p=>C.latest(p,"watered")==="2026-11-11"),"Initial watering appears without import");
+        check((await readDB()).appliedUpdates.includes("initial-watering-2026-11-11"),"Automatic watering update saved to device");
         check(document.documentElement.scrollWidth<=390,"No horizontal overflow at phone width");
         const badImages=[...document.images].filter(i=>i.complete&&!i.naturalWidth);
         check(!badImages.length,"Photos load");
@@ -33,7 +35,7 @@ class Delegate: NSObject, WKNavigationDelegate {
         check(document.querySelector("#detail-dialog").open,"Detail opens");
         document.querySelector("[data-log=watered]").click();await wait(300);
         check(document.querySelector("#detail-content").textContent.includes("Watered"),"Water log rendered");
-        check(document.querySelectorAll(".plant-card .badge.due").length===15,"Logged plant no longer due");
+        check(!C.isDue(state.plants[0],state.season),"Logged plant no longer due");
         document.querySelector("[data-log=moist]").click();await wait(300);
         check(document.querySelector("#detail-content").textContent.includes("Checked · still moist"),"Moist check separate");
         document.querySelector("[data-undo]").click();await wait(300);
@@ -67,8 +69,8 @@ class Delegate: NSObject, WKNavigationDelegate {
         check(backup.plants.length===17,"Live collection round-trip");
         check(backup.plants[0].notes==="Browser test note","Notes survive round-trip");
         const stored=await readDB();check(stored.plants.length===17,"IndexedDB collection saved");
-        check(stored.plants[0].history.length===1,"IndexedDB water log saved");
-        const recordDate=C.addDays(C.dayKey(),-1);
+        check(stored.plants[0].history.length===2,"IndexedDB initial and new water logs saved");
+        const recordDate=C.addDays(C.dayKey(),-4);
         const recordFile={format:"plant-pocket-records",version:1,records:PLANT_SEEDS.map(p=>({plantId:p.id,type:"watered",date:recordDate}))};
         function chooseRecords(data){
           const transfer=new DataTransfer();
@@ -93,13 +95,14 @@ class Delegate: NSObject, WKNavigationDelegate {
         document.querySelector("#import-dialog").close();
         // Leave the visual preview on the real initial 16 plants; this is isolated test storage.
         state={version:1,season:"auto",plants:PLANT_SEEDS.map(p=>C.normalizePlant(p))};
+        C.applyUpdates(state,PLANT_UPDATES);
         await writeDB(state);render();
         document.querySelector("#toast").hidden=true;
         [...document.images].forEach(i=>i.loading="eager");
         await Promise.race([Promise.all([...document.images].map(i=>i.decode().catch(()=>{}))),wait(10000).then(()=>{throw Error("Photo decode timed out");})]);
         check([...document.images].every(i=>i.naturalWidth>0),"Bundled images decoded");
         await Promise.race([navigator.serviceWorker.ready,wait(10000).then(()=>{throw Error("Service worker readiness timed out");})]);
-        const cache=await caches.open("plant-pocket-v2");
+        const cache=await caches.open("plant-pocket-v3");
         check(!!await cache.match(new URL("./index.html",location.href).href),"Offline app shell cached");
         const cachedPhotos=await Promise.all(PLANT_SEEDS.map(p=>cache.match(new URL(p.photo,location.href).href)));
         check(cachedPhotos.every(Boolean),"All 16 photos cached for offline use");

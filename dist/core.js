@@ -28,7 +28,7 @@ function parseImport(raw){
  if(!raw||raw.version!==1||!["plant-pocket-care","plant-pocket-backup"].includes(raw.format)||!Array.isArray(raw.plants))throw Error("This is not a version 1 Plant Pocket care or backup file.");
  if((raw.format==="plant-pocket-care"&&!raw.plants.length)||raw.plants.length>250)throw Error("Import between 1 and 250 plants at once.");
  const plants=raw.plants.map(p=>normalizePlant(p));if(new Set(plants.map(p=>p.id)).size!==plants.length)throw Error("The file contains duplicate plant IDs.");
- return {format:raw.format,plants,season:["auto","summer","winter"].includes(raw.season)?raw.season:"auto"};
+ return {format:raw.format,plants,appliedUpdates:Array.isArray(raw.appliedUpdates)?raw.appliedUpdates.filter(v=>typeof v==="string").slice(0,100):[],season:["auto","summer","winter"].includes(raw.season)?raw.season:"auto"};
 }
 
 function parseRecords(raw){
@@ -56,10 +56,24 @@ function mergeRecords(plants,records,apply=true){
  return {added,duplicates,missing};
 }
 
+
+function applyUpdates(state,updates){
+ const applied=new Set(Array.isArray(state.appliedUpdates)?state.appliedUpdates:[]);
+ let changed=false,added=0;
+ for(const update of updates){
+  if(applied.has(update.id))continue;
+  const valid=parseRecords({format:"plant-pocket-records",version:1,records:update.records});
+  added+=mergeRecords(state.plants,valid.records).added;
+  applied.add(update.id);changed=true;
+ }
+ if(changed)state.appliedUpdates=[...applied];
+ return {changed,added};
+}
+
 function escapeICS(v){return String(v).replace(/\\/g,"\\\\").replace(/\n/g,"\\n").replace(/,/g,"\\,").replace(/;/g,"\\;");}
 function calendar(p,setting="auto"){
  const date=nextCheck(p,setting)||dayKey(),stamp=new Date().toISOString().replace(/[-:]/g,"").replace(/\.\d{3}/,"");
  return ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Plant Pocket//Care Checks//EN","CALSCALE:GREGORIAN","BEGIN:VEVENT","UID:"+encodeURIComponent(p.id)+"-"+Date.now()+"@plant-pocket.local","DTSTAMP:"+stamp,"DTSTART;VALUE=DATE:"+date.replace(/-/g,""),"DTEND;VALUE=DATE:"+addDays(date,1).replace(/-/g,""),"RRULE:FREQ=DAILY;INTERVAL="+p.checkDays,"SUMMARY:"+escapeICS("Check soil: "+p.name),"DESCRIPTION:"+escapeICS(p.water+"\nCheck only; water if the compost is ready. "+p.source),"END:VEVENT","END:VCALENDAR",""].join("\r\n");
 }
-root.PlantCore={dayKey,dayNumber,addDays,season,interval,safeURL,latest,nextCheck,isDue,normalizePlant,parseImport,mergeRecords,calendar};
+root.PlantCore={dayKey,dayNumber,addDays,season,interval,safeURL,latest,nextCheck,isDue,normalizePlant,parseImport,mergeRecords,applyUpdates,calendar};
 })(globalThis);

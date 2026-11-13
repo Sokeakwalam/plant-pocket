@@ -304,3 +304,107 @@ globalThis.PLANT_SEEDS = [
     "lastCheckKind": "moist"
   }
 ];
+
+globalThis.PLANT_UPDATES = [
+  {
+    "id": "initial-watering-2026-11-11",
+    "records": [
+      {
+        "plantId": "plant-7485",
+        "type": "watered",
+        "date": "2026-11-11",
+        "id": "watering-2026-11-11-plant-7485"
+      },
+      {
+        "plantId": "plant-7486",
+        "type": "watered",
+        "date": "2026-11-11",
+        "id": "watering-2026-11-11-plant-7486"
+      },
+      {
+        "plantId": "plant-7487",
+        "type": "watered",
+        "date": "2026-11-11",
+        "id": "watering-2026-11-11-plant-7487"
+      },
+      {
+        "plantId": "plant-7488",
+        "type": "watered",
+        "date": "2026-11-11",
+        "id": "watering-2026-11-11-plant-7488"
+      },
+      {
+        "plantId": "plant-7489",
+        "type": "watered",
+        "date": "2026-11-11",
+        "id": "watering-2026-11-11-plant-7489"
+      },
+      {
+        "plantId": "plant-7490",
+        "type": "watered",
+        "date": "2026-11-11",
+        "id": "watering-2026-11-11-plant-7490"
+      },
+      {
+        "plantId": "plant-7493",
+        "type": "watered",
+        "date": "2026-11-11",
+        "id": "watering-2026-11-11-plant-7493"
+      },
+      {
+        "plantId": "plant-7494",
+        "type": "watered",
+        "date": "2026-11-11",
+        "id": "watering-2026-11-11-plant-7494"
+      },
+      {
+        "plantId": "plant-7495",
+        "type": "watered",
+        "date": "2026-11-11",
+        "id": "watering-2026-11-11-plant-7495"
+      },
+      {
+        "plantId": "plant-7496",
+        "type": "watered",
+        "date": "2026-11-11",
+        "id": "watering-2026-11-11-plant-7496"
+      },
+      {
+        "plantId": "plant-7497",
+        "type": "watered",
+        "date": "2026-11-11",
+        "id": "watering-2026-11-11-plant-7497"
+      },
+      {
+        "plantId": "plant-7498",
+        "type": "watered",
+        "date": "2026-11-11",
+        "id": "watering-2026-11-11-plant-7498"
+      },
+      {
+        "plantId": "plant-7499",
+        "type": "watered",
+        "date": "2026-11-11",
+        "id": "watering-2026-11-11-plant-7499"
+      },
+      {
+        "plantId": "plant-7500",
+        "type": "watered",
+        "date": "2026-11-11",
+        "id": "watering-2026-11-11-plant-7500"
+      },
+      {
+        "plantId": "plant-7501",
+        "type": "watered",
+        "date": "2026-11-11",
+        "id": "watering-2026-11-11-plant-7501"
+      },
+      {
+        "plantId": "plant-7502",
+        "type": "watered",
+        "date": "2026-11-11",
+        "id": "watering-2026-11-11-plant-7502"
+      }
+    ]
+  }
+];
