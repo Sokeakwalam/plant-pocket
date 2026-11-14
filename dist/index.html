@@ -1,14 +1,14 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com ; style-src 'self' ; img-src 'self' data: blob:; connect-src 'self' https://www.gstatic.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebasedatabase.app wss://*.firebasedatabase.app; object-src 'none'; base-uri 'none'; form-action 'self'; worker-src 'self'"><meta name="referrer" content="strict-origin-when-cross-origin"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#244a39"><meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="description" content="Your little jungle, cared for. An offline plant journal with optional private phone syncing and no login screen.">
 <title>Plant Pocket · Your little jungle</title>
 <link rel="manifest" href="./manifest.webmanifest"><link rel="icon" href="./icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="./icon-192.png"><link rel="stylesheet" href="./releases/v5/styles.css">
-<script src="./releases/v5/core.js" defer></script><script src="./releases/v5/data.js" defer></script><script src="./releases/v5/sync-core.js" defer></script><script src="./releases/v5/firebase-config.js" defer></script><script src="./releases/v5/app.js" defer></script><script src="./releases/v5/sync-ui.js" defer></script>
+<link rel="apple-touch-icon" href="./icon-192.png"><link rel="stylesheet" href="./releases/v6/styles.css">
+<script src="./releases/v6/core.js" defer></script><script src="./releases/v6/data.js" defer></script><script src="./releases/v6/sync-core.js" defer></script><script src="./releases/v6/firebase-config.js" defer></script><script src="./releases/v6/app.js" defer></script><script src="./releases/v6/sync-ui.js" defer></script>
 </head>
 <body>
 <header class="topbar"><a class="brand" href="./" aria-label="Plant Pocket home"><span class="brand-icon">❧</span> Plant Pocket</a><span class="local-label"><i></i> Yours, on this device</span></header>
@@ -21,7 +21,7 @@
 <section id="plants" class="grid" aria-label="Your plants"><p>Loading your plants…</p></section>
 <section class="gentle-note"><span aria-hidden="true">♧</span><div><strong>A reminder to check, never a command to water.</strong><p>Feel the compost first. Your plants set the pace; dates are just a helpful nudge.</p></div></section>
 <section class="tools"><div><p class="eyebrow">MAKE IT YOURS</p><h2>A pocket-sized plant journal.</h2><p>Your records stay on this device. Link your phones below to share changes privately, and keep a backup for safekeeping.</p></div><div class="tool-buttons"><button id="export">↓ Save full backup</button><button id="import">↑ Import care / backup</button><button id="install">Install & help</button></div></section>
-<section class="sync-panel" aria-labelledby="sync-heading"><div><p class="eyebrow">ONE GARDEN, BOTH PHONES</p><h2 id="sync-heading">Keep your phones in sync.</h2><p id="sync-status" role="status">Not linked · records saved on this phone</p><p class="small">No email, password or Google login. Link a second phone with a private, single-use invitation.</p><p id="sync-setup-note" class="small" hidden><a href="./firebase-setup.html">Finish the one-time Firebase setup</a> to enable phone syncing.</p></div><div class="tool-buttons"><button id="sync-create" class="primary">Start shared collection</button><button id="sync-join">Join with a code</button><button id="sync-invite" hidden>Invite phone</button><button id="sync-now" hidden>Sync now</button><button id="sync-disconnect" hidden>Disconnect</button></div></section>
+<section class="sync-panel" aria-labelledby="sync-heading"><div><p class="eyebrow">ONE GARDEN, BOTH PHONES</p><h2 id="sync-heading">Keep your phones in sync.</h2><p id="sync-status" role="status">Not linked · records saved on this phone</p><p class="small">No email, password or Google login. Link a second phone with a private, single-use invitation.</p><p id="sync-setup-note" class="small" hidden><a href="./firebase-setup.html">Finish the one-time Firebase setup</a> to enable phone syncing.</p></div><div class="tool-buttons"><button id="sync-create" class="primary">Start shared collection</button><button id="sync-join">Join with a code</button><button id="sync-invite" hidden>Invite phone</button><button id="sync-devices" hidden>Manage linked phones</button><button id="sync-now" hidden>Sync now</button><button id="sync-disconnect" hidden>Disconnect</button></div></section>
 <footer><span>Made for your growing collection.</span><span id="offline-status" role="status">Preparing offline access…</span></footer>
 </main>
 <dialog id="detail-dialog"><div id="detail-content"></div></dialog>
@@ -40,7 +40,7 @@
 <label>Your notes<textarea name="notes" rows="3" maxlength="5000" placeholder="Where it lives, what you’ve noticed…"></textarea></label>
 <label>Source URL (optional)<input name="source" type="url" placeholder="https://www.rhs.org.uk/…"></label>
 <label>Photo (optional)<input name="photo" type="file" accept="image/*"></label>
-<p class="small">Photo identification is not automatic. New photos are stored only on this device and in backups you export.</p>
+<p class="small">Photo identification is not automatic. New photos are stored on this device, in exported backups, and in your private collection when syncing is linked.</p>
 <div class="dialog-actions"><button type="button" data-close>Cancel</button><button type="submit" class="primary">Save plant</button></div></form></dialog>
 <dialog id="import-dialog"><div class="dialog-heading"><div><p class="eyebrow">BRING YOUR GARDEN WITH YOU</p><h2>Import care, records or a backup</h2></div><button class="icon-button" data-close aria-label="Close">×</button></div>
 <p>Choose a Plant Pocket JSON file. Care-record files add dated entries without replacing your collection. You’ll see a preview before anything is saved.</p><input type="file" id="import-file" accept=".json,application/json"><div id="import-preview"></div><div class="dialog-actions"><button data-close>Cancel</button><button id="confirm-import" class="primary" disabled>Add care profiles</button></div></dialog>
@@ -56,6 +56,7 @@
 <div class="dialog-actions"><button class="primary" data-close>Back to my plants</button></div></dialog>
 <dialog id="join-dialog"><form id="join-form"><div class="dialog-heading"><div><p class="eyebrow">THE SAME GARDEN, TOGETHER</p><h2>Link this phone</h2></div><button type="button" class="icon-button" data-close aria-label="Close">×</button></div><p>On the first phone, tap Invite phone. Paste its code below. The code works once and expires after 12 hours.</p><label>Invitation code<input id="join-code" autocomplete="off" autocapitalize="off" spellcheck="false" required></label><p class="small">This combines this phone’s plants and care logs with the shared collection. Existing watering logs from both phones are kept. If the same field was edited on both phones, the later edit is used.</p><div class="dialog-actions"><button type="button" data-close>Cancel</button><button type="submit" class="primary">Link this phone</button></div></form></dialog>
 <dialog id="invite-dialog"><div class="dialog-heading"><div><p class="eyebrow">SHARE YOUR LITTLE JUNGLE</p><h2>Invite your other phone</h2></div><button class="icon-button" data-close aria-label="Close">×</button></div><p>On the other phone, open Plant Pocket, tap Join with a code, and paste this invitation. Keep this code private: it gives access to the collection.</p><label>Single-use invitation · expires in 12 hours<input id="invite-code" readonly></label><div class="dialog-actions"><button data-close>Done</button><button id="copy-invite" class="primary">Copy invitation</button></div></dialog>
+<dialog id="devices-dialog"><h2>Linked phones</h2><p>Remove a phone to stop its future access. Previously downloaded records remain on that phone.</p><div id="device-list"></div><button data-close>Done</button></dialog>
 <div id="toast" role="status" aria-live="polite" hidden></div>
 <noscript>This app needs JavaScript enabled to store and display your plant collection.</noscript>
 </body></html>

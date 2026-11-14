@@ -38,15 +38,31 @@ async function person(name){
  const make=(id,plant,type,date)=>({id,plantId:plant,clock:Date.now(),kind:"log",value:{id,type,date}});
  const aOp=make("android-water","plant-7485","watered",PlantCore.dayKey()),bOp=make("iphone-check","plant-7485","moist",PlantCore.dayKey());
  await Promise.all([
-  dbSdk.set(dbSdk.ref(a.db,location+"/ops/"+aOp.id),{writer:a.user.uid,payload:JSON.stringify(aOp)}),
-  dbSdk.set(dbSdk.ref(b.db,location+"/ops/"+bOp.id),{writer:b.user.uid,payload:JSON.stringify(bOp)})
+  dbSdk.set(dbSdk.ref(a.db,location+"/ops/"+aOp.id),{writer:a.user.uid,op:aOp}),
+  dbSdk.set(dbSdk.ref(b.db,location+"/ops/"+bOp.id),{writer:b.user.uid,op:bOp})
  ]);
  const operations=(await dbSdk.get(dbSdk.ref(a.db,location+"/ops"))).val();
  check(operations["android-water"]&&operations["iphone-check"],"Concurrent writes from two anonymous devices both survive");
- await denied(dbSdk.set(dbSdk.ref(b.db,location+"/ops/"+aOp.id),{writer:b.user.uid,payload:"overwritten"}),"Existing care changes cannot be overwritten");
- await denied(dbSdk.set(dbSdk.ref(c.db,location+"/ops/outsider"),{writer:c.user.uid,payload:"x"}),"Uninvited device denied writes");
- await denied(dbSdk.set(dbSdk.ref(b.db,location+"/ops/spoofed"),{writer:a.user.uid,payload:"x"}),"A device cannot impersonate another writer");
+ await denied(dbSdk.set(dbSdk.ref(b.db,location+"/ops/"+aOp.id),{writer:b.user.uid,op:bOp}),"Existing care changes cannot be overwritten");
+ await denied(dbSdk.set(dbSdk.ref(c.db,location+"/ops/outsider"),{writer:c.user.uid,op:bOp}),"Uninvited device denied writes");
+ await denied(dbSdk.set(dbSdk.ref(b.db,location+"/ops/spoofed"),{writer:a.user.uid,op:bOp}),"A device cannot impersonate another writer");
  await denied(dbSdk.get(dbSdk.ref(c.db,"collections")),"Private collections cannot be enumerated");
  const publicRead=await fetch(url+"/"+location+".json?ns="+namespace);check(publicRead.status===401,"Unauthenticated reads denied");
+ // Structured operations reject malformed input and legacy-format new writes.
+ await denied(dbSdk.set(dbSdk.ref(a.db,location+"/ops/bad-json"),{writer:a.user.uid,payload:"{"}),"Opaque JSON writes rejected");
+ for(const [id,op] of Object.entries({"bad-id":{...aOp,id:"wrong"},"bad-kind":{...aOp,id:"bad-kind",kind:"execute"},"bad-clock":{...aOp,id:"bad-clock",clock:Date.now()+3600000},"bad-field":{id:"bad-field",plantId:aOp.plantId,clock:Date.now(),kind:"field",field:"notes",value:{html:"x"}},"bad-interval":{id:"bad-interval",plantId:aOp.plantId,clock:Date.now(),kind:"field",field:"summer",value:"garbage"}})){
+  await denied(dbSdk.set(dbSdk.ref(a.db,location+"/ops/"+id),{writer:a.user.uid,op}),"Malformed operation rejected: "+id);
+ }
+ const field={id:"valid-field",plantId:aOp.plantId,clock:Date.now(),kind:"field",field:"notes",value:"Safe notes"};
+ await dbSdk.set(dbSdk.ref(a.db,location+"/ops/valid-field"),{writer:a.user.uid,op:field});check(true,"Valid structured field accepted");
+ const interval={...field,id:"valid-range",field:"summer",value:"7–14"};await dbSdk.set(dbSdk.ref(a.db,location+"/ops/valid-range"),{writer:a.user.uid,op:interval});check(true,"Valid interval accepted");
+ await denied(dbSdk.update(dbSdk.ref(b.db,location+"/members/"+a.user.uid),{revoked:true}),"Member cannot revoke owner");
+ await dbSdk.update(dbSdk.ref(a.db,location+"/members/"+b.user.uid),{revoked:true});
+ await denied(dbSdk.get(dbSdk.ref(b.db,location+"/ops")),"Revoked phone cannot read operations");
+ await denied(dbSdk.set(dbSdk.ref(b.db,location+"/ops/revoked-write"),{writer:b.user.uid,op:{...field,id:"revoked-write"}}),"Revoked phone cannot write");
+ await denied(dbSdk.update(dbSdk.ref(b.db,location+"/members/"+b.user.uid),{revoked:null}),"Revoked phone cannot restore its access");
+ await dbSdk.update(dbSdk.ref(a.db,location+"/members/"+a.user.uid),{revoked:true});
+ await denied(dbSdk.get(dbSdk.ref(a.db,location+"/ops")),"Self-disconnect revokes owner access too");
+ await denied(dbSdk.set(dbSdk.ref(a.db,"invites/"+crypto.randomBytes(24).toString("hex")),invitation),"Revoked owner cannot issue invitations");
  console.log(checks+" Firebase permission and concurrent-write assertions passed");
 })().catch(error=>{console.error(error);process.exitCode=1;}).finally(async()=>{for(const app of apps)dbSdk.goOffline(dbSdk.getDatabase(app));await Promise.all(apps.map(app=>appSdk.deleteApp(app)));setTimeout(()=>process.exit(process.exitCode||0),100);});

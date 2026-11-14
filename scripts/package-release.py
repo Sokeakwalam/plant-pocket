@@ -1,7 +1,7 @@
 from pathlib import Path
 import re, shutil
 root=Path(__file__).resolve().parent.parent
-version="v5"
+version="v6"
 names=["core.js","data.js","app.js","sync-core.js","firebase-config.js","sync-ui.js","styles.css"]
 target=root/"dist/releases"/version
 target.mkdir(parents=True,exist_ok=True)

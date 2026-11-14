@@ -88,3 +88,13 @@ tests/browser.swift checks the responsive app and ordinary plant workflows. test
 .github/workflows/pages.yml deploys dist/ after pushing main. Only static app files and the public Firebase web configuration are deployed. .private/ holds personal transfer files and is excluded, as are .build/, debug logs and ZIPs.
 
 When releasing changes, update the cache version and release asset path, then run scripts/package-release.py. Versioned asset URLs allow older offline app shells to fetch the current app code without mixing cached releases.
+
+## Security update — 14 November 2026
+
+Release v6 uses server-validated structured sync operations. Existing JSON operations remain readable, and invalid historical operations are skipped so that one corrupt entry cannot block reconnecting. Old app versions must be refreshed before writing with the new rules. Existing care records and anonymous identities are retained.
+
+The collection owner can use **Manage linked phones → Remove access** to revoke a device. **Disconnect** also revokes the current device's membership and requires an online connection. Revocation prevents future database access but cannot erase previously downloaded records. Revoked identities cannot restore their membership; clear the old browser identity and use a fresh invitation if intentionally pairing that device again. Disconnecting the owner also prevents that identity from issuing further invitations; export a backup first if replacing the owner phone.
+
+Every shipped HTML page has a Content Security Policy. Utility pages allow their existing inline scripts/styles using exact SHA-256 hashes; the main app permits no inline scripts. The policy permits only the pinned Firebase SDK host and required Firebase/Auth connections. Database syncing uses WebSockets so the security policy can block JSONP script transports; a network that blocks WebSockets must be changed before cloud syncing can resume. Deployment actions are pinned to immutable commits. The public Firebase browser key is intentionally retained; it is not an administrator credential.
+
+The Firebase rules must be deployed together with v6. Keep the Firebase project on Spark without attaching billing. The regression suite tests invalid operation rejection, member/owner permissions, revocation, immutable records, corrupt legacy-record recovery, two-phone offline convergence, and inline-script blocking. Browser tests extend CSP only for local emulator endpoints; these endpoints are absent from published pages.

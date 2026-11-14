@@ -7,7 +7,7 @@ const keyOK=v=>typeof v==="string"&&/^[A-Za-z0-9][A-Za-z0-9_-]{0,149}$/.test(v);
 const logKey=(plantId,e)=>e.id||"legacy-"+plantId+"-"+e.type+"-"+e.date;
 const newer=(a,b)=>!b||a.clock>b.clock||(a.clock===b.clock&&a.id>b.id);
 function clean(op){
- if(!op||!keyOK(op.id)||!keyOK(op.plantId)||!Number.isSafeInteger(op.clock)||op.clock<0||!["create","delete","field","log","unlog"].includes(op.kind))throw Error("An invalid shared change was received.");
+ if(!op||!keyOK(op.id)||!keyOK(op.plantId)||!Number.isSafeInteger(op.clock)||op.clock<0||op.clock>=Number.MAX_SAFE_INTEGER||op.clock>Date.now()+300000||!["create","delete","field","log","unlog"].includes(op.kind))throw Error("An invalid shared change was received.");
  const result={id:op.id,plantId:op.plantId,clock:op.clock,kind:op.kind};
  if(op.kind==="field"){
   if(!FIELDS.includes(op.field))throw Error("Unknown shared plant field.");

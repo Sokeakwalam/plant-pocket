@@ -14,6 +14,7 @@ function controls(){
  document.querySelector("#sync-create").hidden=active;
  document.querySelector("#sync-join").hidden=active;
  document.querySelector("#sync-invite").hidden=!active;
+ document.querySelector("#sync-devices").hidden=!active;
  document.querySelector("#sync-now").hidden=!active;
  document.querySelector("#sync-disconnect").hidden=!active;
  for(const id of ["#sync-create","#sync-join","#sync-invite","#sync-now"])document.querySelector(id).disabled=!ready||linking;
@@ -32,7 +33,7 @@ async function prepare(){
   const modules=await Promise.all([import(base+"firebase-app.js"),import(base+"firebase-auth.js"),import(base+"firebase-database.js")]);
   sdk=Object.assign({},...modules);
   const app=sdk.initializeApp(config,"plant-pocket");
-  auth=sdk.getAuth(app);cloud=sdk.getDatabase(app);
+  auth=sdk.getAuth(app);sdk.forceWebSockets();cloud=sdk.getDatabase(app);
   if(testConfig){
    sdk.connectAuthEmulator(auth,"http://127.0.0.1:9099",{disableWarnings:true});
    sdk.connectDatabaseEmulator(cloud,"127.0.0.1",9000);
@@ -46,8 +47,16 @@ async function prepare(){
 }
 function stopListeners(){unsub.forEach(fn=>fn());unsub=[];clearTimeout(incomingTimer);clearTimeout(uploadTimer);incoming=[];known=new Set();receiveRetries=0;}
 function decode(id,value){
- if(!value||typeof value.payload!=="string"||value.payload.length>3000000)throw Error("A shared change could not be read.");
- const op=S.clean(JSON.parse(value.payload));if(op.id!==id)throw Error("A shared change has the wrong identifier.");return op;
+ if(!value||(!value.op&&(typeof value.payload!=="string"||value.payload.length>3000000)))throw Error("A shared change could not be read.");
+ const op=S.clean(value.op||JSON.parse(value.payload));if(op.id!==id)throw Error("A shared change has the wrong identifier.");return op;
+}
+function decodeAll(values){
+ const result=[];let rejected=0;
+ for(const [id,value] of Object.entries(values)){
+  try{const op=decode(id,value);const previous=state.sync.ops[id];if(previous&&JSON.stringify(previous)!==JSON.stringify(op))throw Error("Conflicting change");result.push(op);}catch{rejected++;}
+ }
+ if(rejected)toast("Some invalid shared changes were skipped. Your valid records are kept.");
+ return result;
 }
 async function receive(){
  if(!incoming.length)return;
@@ -72,16 +81,16 @@ async function flush(){
   if(group.length)batches.push(group);
   for(const batch of batches){
    const updates={};
-   for(const op of batch)updates[op.id]={writer:user.uid,payload:JSON.stringify(op)};
+   for(const op of batch)updates[op.id]={writer:user.uid,op};
    try{batch.forEach(op=>inflight.add(op.id));await sdk.update(sdk.ref(cloud,path),updates);batch.forEach(op=>known.add(op.id));}
    catch(error){
     // A response may have been lost, or another device may have uploaded a common seed first.
     const snapshot=await sdk.get(sdk.ref(cloud,path));
     const remote=snapshot.val()||{};
-    const ops=Object.entries(remote).map(([id,value])=>decode(id,value));
+    const ops=decodeAll(remote);
     await local(()=>S.merge(state,ops));Object.keys(remote).forEach(id=>known.add(id));
     const retry=batch.filter(op=>!known.has(op.id)),remaining={};
-    for(const op of retry)remaining[op.id]={writer:user.uid,payload:JSON.stringify(op)};
+    for(const op of retry)remaining[op.id]={writer:user.uid,op};
     if(retry.length){await sdk.update(sdk.ref(cloud,path),remaining);retry.forEach(op=>known.add(op.id));}
    }
    finally{batch.forEach(op=>inflight.delete(op.id));}
@@ -103,9 +112,9 @@ async function attach(){
  stopListeners();
  const id=state.sync.collectionId;
  const membership=await sdk.get(sdk.ref(cloud,"collections/"+id+"/members/"+user.uid));
- if(!membership.exists())throw Error("This browser no longer has its linked device identity. Use a new invitation from the other phone.");
+ if(!membership.exists()||membership.child("revoked").val()===true)throw Error("This browser no longer has its linked device identity. Use a new invitation from the other phone.");
  const snapshot=await sdk.get(sdk.ref(cloud,"collections/"+id+"/ops"));
- const values=snapshot.val()||{},ops=Object.entries(values).map(([key,value])=>decode(key,value));
+ const values=snapshot.val()||{},ops=decodeAll(values);
  await local(()=>S.merge(state,ops));Object.keys(values).forEach(key=>known.add(key));
  unsub.push(sdk.onChildAdded(sdk.ref(cloud,"collections/"+id+"/ops"),snapshot=>{
   try{
@@ -173,6 +182,24 @@ async function invite(){
  }catch(error){say(friendly(error));}
  finally{linking=false;controls();}
 }
+async function manageDevices(){
+ try{
+  await prepare();const path="collections/"+state.sync.collectionId;
+  const snapshot=await sdk.get(sdk.ref(cloud,path));
+  if(snapshot.child("owner").val()!==user.uid)throw Error("Manage linked phones on the phone that started this collection.");
+  const list=document.querySelector("#device-list");list.replaceChildren();
+  for(const [uid,member] of Object.entries(snapshot.child("members").val()||{})){
+   if(member.revoked)continue;
+   const row=document.createElement("p"),name=document.createElement("span");
+   name.textContent=(uid===user.uid?"This phone (owner)":"Linked phone")+" · linked "+new Date(member.joinedAt).toLocaleString()+" · "+uid.slice(-6)+" ";row.append(name);
+   if(uid!==user.uid){const button=document.createElement("button");button.textContent="Remove access";button.onclick=async()=>{
+    if(!confirm("Remove this phone’s access? Copies already saved on it cannot be erased remotely."))return;
+    try{await sdk.update(sdk.ref(cloud,path+"/members/"+uid),{revoked:true});row.remove();toast("Phone access revoked.");}catch(error){say(friendly(error));}
+   };row.append(button);}list.append(row);
+  }
+  document.querySelector("#devices-dialog").showModal();
+ }catch(error){say(friendly(error));}
+}
 async function start(){
  if(initialized)return;initialized=true;controls();
  document.querySelector("#sync-create").addEventListener("click",create);
@@ -181,13 +208,14 @@ async function start(){
  document.querySelector("#sync-invite").addEventListener("click",invite);
  document.querySelector("#sync-now").addEventListener("click",async()=>{try{await prepare();await attach();}catch(error){say(friendly(error));}});
  document.querySelector("#copy-invite").addEventListener("click",async()=>{try{await navigator.clipboard.writeText(document.querySelector("#invite-code").value);toast("Invitation copied.");}catch{document.querySelector("#invite-code").select();toast("Copy the selected invitation code.");}});
+ document.querySelector("#sync-devices").addEventListener("click",manageDevices);
  document.querySelector("#sync-disconnect").addEventListener("click",async()=>{
   if(!confirm("Disconnect this phone from syncing? Its local plants and history will be kept."))return;
-  stopListeners();await local(()=>state.sync.collectionId="");controls();label("Not linked · records saved on this phone");
+  try{await prepare();await sdk.update(sdk.ref(cloud,"collections/"+state.sync.collectionId+"/members/"+user.uid),{revoked:true});stopListeners();await local(()=>state.sync.collectionId="");controls();label("Disconnected · this device’s access was revoked");}catch(error){say("Could not revoke access. Connect online and try again. "+friendly(error));}
  });
  window.addEventListener("plant-pocket-change",event=>{if(!event.detail?.remote&&connected())queueUpload();});
- window.addEventListener("online",async()=>{if(connected()){try{await prepare();if(!unsub.length)await attach();else await flush();}catch(error){label(friendly(error));}}});
- window.addEventListener("offline",()=>{if(connected())label("Offline · changes saved on this phone");});
+ window.addEventListener("online",async()=>{if(cloud)sdk.goOnline(cloud);if(connected()){try{await prepare();if(!unsub.length)await attach();else await flush();}catch(error){label(friendly(error));}}});
+ window.addEventListener("offline",()=>{if(cloud)sdk.goOffline(cloud);if(connected())label("Offline · changes saved on this phone");});
  if(connected()&&hasConfig()){
   try{label("Connecting your phones…");await prepare();await attach();}
   catch(error){label(friendly(error));}
