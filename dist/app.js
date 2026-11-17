@@ -1,7 +1,7 @@
 /* All collection data stays in this device's IndexedDB. */
 "use strict";
 const C=PlantCore,$=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
-let db,state,filter="all",activeId=null,pendingImport=null,busy=false;
+let db,state,filter="all",activeId=null,wateringPlantId=null,pendingImport=null,busy=false;
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const humanDate=k=>k?new Date(k+"T12:00:00").toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"}):"Not recorded";
 const today=()=>C.dayKey(),currentSeason=()=>C.season(state.season),findPlant=id=>state.plants.find(p=>p.id===id);
@@ -33,11 +33,29 @@ function renderDetail(){
  '<div class="care-block"><h3>Your notes</h3><p>'+esc(p.notes||"Add your observations with Edit plant.")+'</p></div>'+
  '<div class="care-block"><h3>Check-in rhythm</h3><p>Last watered: '+esc(humanDate(last))+'<br>Next soil check: '+esc(next?humanDate(next):"Check now · no history yet")+'<br>Soil-check spacing: '+p.checkDays+' days</p></div>'+
  '<div class="detail-actions"><button class="primary" data-log="watered">✓ I checked and watered</button><button data-log="moist">Still moist · check later</button></div><p class="small">Only log watering after you’ve watered. “Still moist” records a check without changing your watering history.</p>'+
+ '<div class="sub-actions"><button data-water-date>Record another watering date</button></div>'+
  '<div class="sub-actions"><button data-edit>Edit plant</button><button data-calendar>Calendar reminder</button><button data-undo '+(!p.history.length?"disabled":"")+'>Undo last log</button></div>'+
  '<div class="sub-actions">'+(p.source?'<a href="'+esc(p.source)+'" target="_blank" rel="noopener noreferrer">Care source ↗</a>':"")+'<button data-research>Search care ↗</button><button class="danger" data-delete>Remove plant</button></div>'+
  '<p class="small">'+esc(p.confidence||"Identification entered by you.")+'</p><h3>Recent history</h3><ul class="history">'+(history||'<li>No care logged yet. Your history starts with your first check-in.</li>')+'</ul>';
 }
 function showDetail(id){activeId=id;renderDetail();openDialog("#detail-dialog");}
+async function recordCare(plantId,kind,date){
+ if(!["watered","moist"].includes(kind)||!date||C.dayNumber(date)>C.dayNumber(today())){toast("Choose today or an earlier date.");return false;}
+ const p=findPlant(plantId);if(!p){toast("This plant is no longer in your collection.");return false;}
+ if(kind==="watered"&&p.history.some(e=>e.type===kind&&e.date===date)){toast("Watering is already recorded for "+humanDate(date)+".");return false;}
+ const saved=await change(()=>{
+  p.history.push({type:kind,date,id:crypto.randomUUID()});
+  if(!p.lastCheck||date>=p.lastCheck){p.lastCheck=date;p.lastCheckKind=kind;}
+ });
+ if(saved)toast(kind==="watered"?"Watering saved for "+humanDate(date)+".":"Soil check saved. Check again in "+p.checkDays+" days.");
+ return saved;
+}
+function wateringDate(plant){
+ wateringPlantId=plant.id;
+ $("#watering-plant-name").textContent=plant.name;
+ $("#watering-date").value=today();$("#watering-date").max=today();
+ $("#watering-dialog").showModal();
+}
 function research(name){if(!name.trim()){toast("Enter a plant name first.");return;}window.open("https://www.google.com/search?q="+encodeURIComponent(name+" plant care watering (site:rhs.org.uk OR site:extension.umn.edu OR site:aos.org)"),"_blank","noopener,noreferrer");}
 function editor(id){const p=id?findPlant(id):null,form=$("#editor-form");form.reset();$("#editor-title").textContent=p?"Edit plant":"Add a plant";form.elements.id.value=p?p.id:"";if(p)["name","botanical","group","summer","winter","checkDays","light","water","care","notes","source"].forEach(k=>form.elements[k].value=p[k]??"");else{form.elements.summer.value="7–14";form.elements.winter.value="14–21";}$("#detail-dialog").close();openDialog("#editor-dialog");}
 async function resizePhoto(file){if(!file)return "";if(file.size>20000000)throw Error("Choose a photo smaller than 20 MB.");const url=URL.createObjectURL(file);try{return await new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>{try{const scale=Math.min(1,1000/Math.max(img.width,img.height)),canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);resolve(canvas.toDataURL("image/jpeg",.78));}catch(e){reject(e);}};img.onerror=()=>reject(Error("This photo format could not be opened. Try JPEG or PNG."));img.src=url;});}finally{URL.revokeObjectURL(url);}}
@@ -45,8 +63,14 @@ function download(contents,name,type){const u=URL.createObjectURL(new Blob([cont
 function blobToData(blob){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(r.error);r.readAsDataURL(blob);});}
 async function exportBackup(){const button=$("#export");button.disabled=true;try{const plants=JSON.parse(JSON.stringify(state.plants));for(const p of plants){if(p.photo&&p.photo.startsWith("./photos/")){const r=await fetch(p.photo);if(!r.ok)throw Error("Could not include "+p.name+"’s photo. Open online once and try again.");p.photo=await blobToData(await r.blob());}}download(JSON.stringify({format:"plant-pocket-backup",version:1,exportedAt:new Date().toISOString(),season:state.season,appliedUpdates:state.appliedUpdates||[],plants},null,2),"plant-pocket-backup-"+today()+".json","application/json");toast("Backup prepared. Save it somewhere you can find again.");}catch(e){toast(e.message);}finally{button.disabled=false;}}
 function templateFile(){download(JSON.stringify({format:"plant-pocket-care",version:1,plants:[{name:"Replace with the plant’s common name",botanical:"Replace with its botanical name",group:"Foliage",summer:"7–14",winter:"14–21",checkDays:7,light:"Replace with researched light guidance.",water:"Replace with a researched compost-dryness check.",care:"Replace with a researched care summary. Adjust the example day ranges for this species.",source:"https://www.rhs.org.uk/",confidence:"Confirm the plant identification before applying this care."}]},null,2),"plant-pocket-care-template.json","application/json");}
-async function setupOffline(){const label=$("#offline-status");if(!("serviceWorker" in navigator)||!window.isSecureContext){label.textContent="Offline install needs HTTPS hosting";return;}try{const registration=await navigator.serviceWorker.register("./sw.js",{scope:"./"});await navigator.serviceWorker.ready;const check=async()=>{const cache=await caches.open("plant-pocket-v6"),ready=await cache.match(new URL("./index.html",location.href).href);label.textContent=ready?"Ready offline · saved on this device":"Open online to finish offline setup";};await check();if(registration.installing)registration.installing.addEventListener("statechange",check);}catch(e){label.textContent="Offline setup incomplete · retry online";console.warn("Offline setup",e);}}
+async function setupOffline(){const label=$("#offline-status");if(!("serviceWorker" in navigator)||!window.isSecureContext){label.textContent="Offline install needs HTTPS hosting";return;}try{const registration=await navigator.serviceWorker.register("./sw.js",{scope:"./"});await navigator.serviceWorker.ready;const check=async()=>{const cache=await caches.open("plant-pocket-v7"),ready=await cache.match(new URL("./index.html",location.href).href);label.textContent=ready?"Ready offline · saved on this device":"Open online to finish offline setup";};await check();if(registration.installing)registration.installing.addEventListener("statechange",check);}catch(e){label.textContent="Offline setup incomplete · retry online";console.warn("Offline setup",e);}}
 function bind(){
+ $("#watering-form").addEventListener("submit",async event=>{
+  event.preventDefault();const button=event.target.querySelector("[type=submit]");button.disabled=true;
+  try{if(await recordCare(wateringPlantId,"watered",$("#watering-date").value))$("#watering-dialog").close();}
+  catch{toast("Choose a valid date, today or earlier.");}
+  finally{button.disabled=false;}
+ });
  $("#search").addEventListener("input",render);
  $$(".tab").forEach(b=>b.addEventListener("click",()=>{filter=b.dataset.filter;render();}));
  $("#season").addEventListener("change",async e=>{if(await change(()=>state.season=e.target.value))toast("Season updated.");});
@@ -54,11 +78,12 @@ function bind(){
  $("#add-plant").addEventListener("click",()=>editor(null));$$("dialog").forEach(d=>d.addEventListener("click",e=>{if(e.target.closest("[data-close]"))d.close();}));
  $("#detail-content").addEventListener("click",async e=>{
   const b=e.target.closest("button");if(!b)return;const p=findPlant(activeId);if(!p)return;
-  if(b.dataset.log){const kind=b.dataset.log;if(await change(()=>{p.lastCheck=today();p.lastCheckKind=kind;p.history.push({type:kind,date:today(),id:crypto.randomUUID()});}))toast(kind==="watered"?"Watering saved.":"Soil check saved. Check again in "+p.checkDays+" days.");}
+  if(b.dataset.log)await recordCare(p.id,b.dataset.log,today());
+  if(b.hasAttribute("data-water-date"))wateringDate(p);
   if(b.hasAttribute("data-edit"))editor(p.id);
   if(b.hasAttribute("data-research"))research(p.botanical||p.name);
   if(b.hasAttribute("data-calendar")){download(C.calendar(p,state.season),p.name.replace(/[^a-z0-9]/gi,"-")+"-soil-check.ics","text/calendar");toast("Calendar file prepared. Your calendar controls alerts.");}
-  if(b.hasAttribute("data-undo")){if(await change(()=>{p.history.pop();const last=p.history.at(-1);p.lastCheck=last?last.date:null;p.lastCheckKind=last?last.type:"moist";}))toast("Last care log undone.");}
+  if(b.hasAttribute("data-undo")){if(await change(()=>{p.history.pop();const last=p.history.reduce((latest,e)=>!latest||e.date>=latest.date?e:latest,null);p.lastCheck=last?last.date:null;p.lastCheckKind=last?last.type:"moist";}))toast("Last care log undone.");}
   if(b.hasAttribute("data-delete")&&confirm("Remove "+p.name+" and its history? Export a backup first if you want to keep it.")){if(await change(()=>state.plants=state.plants.filter(q=>q.id!==p.id))){$("#detail-dialog").close();toast("Plant removed.");}}
  });
  $("#template").innerHTML+=PLANT_SEEDS.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join("");

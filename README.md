@@ -98,3 +98,7 @@ The collection owner can use **Manage linked phones → Remove access** to revok
 Every shipped HTML page has a Content Security Policy. Utility pages allow their existing inline scripts/styles using exact SHA-256 hashes; the main app permits no inline scripts. The policy permits only the pinned Firebase SDK host and required Firebase/Auth connections. Database syncing uses WebSockets so the security policy can block JSONP script transports; a network that blocks WebSockets must be changed before cloud syncing can resume. Deployment actions are pinned to immutable commits. The public Firebase browser key is intentionally retained; it is not an administrator credential.
 
 The Firebase rules must be deployed together with v6. Keep the Firebase project on Spark without attaching billing. The regression suite tests invalid operation rejection, member/owner permissions, revocation, immutable records, corrupt legacy-record recovery, two-phone offline convergence, and inline-script blocking. Browser tests extend CSP only for local emulator endpoints; these endpoints are absent from published pages.
+
+## Manual watering dates
+
+Open a plant and choose **Record another watering date**. Select today or a past date, then **Save watering**. The entry is added to the normal history and shared with linked phones. Backdated watering never replaces a newer last-watered date or soil check; duplicate watering entries for the same plant and date are prevented. The quick watering button still records today.
